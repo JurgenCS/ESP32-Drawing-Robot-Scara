@@ -35,4 +35,4 @@ static const int servoLeftPin = GPIO_NUM_2;
 static const int servoRightPin = GPIO_NUM_1;
 
 // Local domain name (mDNS hostname)
-const char* LOCAL_DOMAIN = "draw.local";
+constexpr const char* LOCAL_DOMAIN = "draw.local";

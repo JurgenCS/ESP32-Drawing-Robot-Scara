@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <WiFiManager.h>
+#include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
@@ -12,38 +12,59 @@
 // Website
 #include <web/index_gz.h>
 
+const char *ssid = "SSID";
+const char *password = "PSWD";
+
 // WiFi and server setup
 AsyncWebServer server(80);
+
+String get_wifi_status(int status){
+    switch(status){
+        case WL_IDLE_STATUS:
+        return "WL_IDLE_STATUS";
+        case WL_SCAN_COMPLETED:
+        return "WL_SCAN_COMPLETED";
+        case WL_NO_SSID_AVAIL:
+        return "WL_NO_SSID_AVAIL";
+        case WL_CONNECT_FAILED:
+        return "WL_CONNECT_FAILED";
+        case WL_CONNECTION_LOST:
+        return "WL_CONNECTION_LOST";
+        case WL_CONNECTED:
+        return "WL_CONNECTED";
+        case WL_DISCONNECTED:
+        return "WL_DISCONNECTED";
+    }
+}
+
+void setupWiFi()
+{
+  WiFi.mode(WIFI_STA);
+  int status = WL_IDLE_STATUS;
+  Serial.println("\nConnecting");
+  Serial.println(get_wifi_status(status));
+  WiFi.begin(ssid, password);
+  
+  while(status != WL_CONNECTED){
+      delay(500);
+      status = WiFi.status();
+      Serial.println(get_wifi_status(status));
+  }
+
+  Serial.println("\nConnected to the WiFi network");
+  Serial.print("Local ESP32 IP: ");
+  Serial.println(WiFi.localIP());
+}
 
 void setup()
 {
   Serial.begin(115200);
-
+  delay(2000);
   servoLift.attach(liftServoPin);
   servoLeft.attach(servoLeftPin);
   servoRight.attach(servoRightPin);
 
-  // Initialize WiFi
-  Serial.println("Connecting to WiFi...");
-  WiFiManager wifiManager;
-  wifiManager.setConnectRetries(5);
-  wifiManager.setWiFiAutoReconnect(true);
-  wifiManager.setConnectTimeout(10);
-  WiFi.setSleep(WIFI_PS_NONE);
-  wifiManager.autoConnect();
-
-  Serial.println("\nWiFi connected.");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  // Initialize mDNS with local domain
-  if (MDNS.begin(LOCAL_DOMAIN)) {
-    Serial.print("mDNS responder started. Access device at: http://");
-    Serial.print(LOCAL_DOMAIN);
-    Serial.println("/");
-  } else {
-    Serial.println("Error setting up mDNS responder!");
-  }
+  setupWiFi();
 
   Serial.println("Homing XY.");
   homeXY();
@@ -55,8 +76,6 @@ void setup()
     if (request->hasHeader("If-None-Match")) {
       String etag = request->header("If-None-Match");
       if (etag.equals(index_gz_sha)) {
-        Serial.println("ETag found. Sending 304");
-        // Respond with HTTP 304 (Not Modified) if hashes match
         request->send(304);
         return;
       }
@@ -66,8 +85,6 @@ void setup()
     AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", index_gz, index_gz_len);
     response->addHeader("Content-Encoding", "gzip");
     response->addHeader("ETag", index_gz_sha);
-
-    Serial.println("No ETag found or mismatch. Sending 200");
     request->send(response); });
 
   server.on("/gcode", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -120,13 +137,11 @@ void setup()
 
   server.on("/assembly", HTTP_POST, [](AsyncWebServerRequest *request)
             {
-              Serial.println("Assembly...");
               assemblyPosition();
               request->send(200, "text/plain", "OK"); });
 
   server.on("/restart", HTTP_POST, [](AsyncWebServerRequest *request)
             {
-              Serial.println("Restarting ESP...");
               ESP.restart(); });
 
   server.begin();

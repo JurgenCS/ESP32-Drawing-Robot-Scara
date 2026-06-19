@@ -5,6 +5,7 @@
 .vscode/ipch
 
 include/web
+include/credentials.h
 web/node_modules
 web/dist
 web/tsconfig.tsbuildinfo
